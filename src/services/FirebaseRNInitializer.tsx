@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
-import { initializeFirebase } from './firebaseRN.js';
+import { initializeFirebase } from './firebaseRN';
 
 interface FirebaseRNInitializerProps {
   children: React.ReactNode;
