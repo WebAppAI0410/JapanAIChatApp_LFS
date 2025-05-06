@@ -4,4 +4,5 @@ export interface ChatMessage {
   content: string;
   model?: string;
   timestamp: number;
+  imageUrl?: string;
 }

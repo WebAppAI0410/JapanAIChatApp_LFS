@@ -2,6 +2,7 @@ export const theme = {
   colors: {
     primary: '#06C755', // LINE's signature green
     secondary: '#00B900', // Darker green for buttons
+    premium: '#9C27B0', // Purple for premium features
     background: '#FFFFFF',
     card: '#F8F8F8',
     cardBackground: '#F8F8F8', // For card backgrounds
