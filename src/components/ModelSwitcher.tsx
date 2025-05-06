@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../styles/theme';
 import { MODEL_INFO, MODELS } from '../services/apiConfig';
 import { checkModelAvailability, getAvailableModelsForUser } from '../services/openRouter';
+import { UserAvatar } from './UserAvatar';
 
 interface ModelSwitcherProps {
   currentModelId: string;
@@ -27,7 +28,7 @@ export const ModelSwitcher: React.FC<ModelSwitcherProps> = ({
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   
-  const currentModel = MODEL_INFO[currentModelId];
+  const currentModel = MODEL_INFO[currentModelId] || { name: 'AI', avatar: undefined };
   
   const openModelSelector = async () => {
     setModalVisible(true);
@@ -98,6 +99,13 @@ export const ModelSwitcher: React.FC<ModelSwitcherProps> = ({
         ]}
         onPress={() => handleModelSelect(item)}
       >
+        <UserAvatar
+          name={modelInfo.name}
+          imageUrl={modelInfo.avatar || undefined}
+          size={40}
+          backgroundColor={theme.colors.secondary}
+        />
+        
         <View style={styles.modelInfoContainer}>
           <Text style={[
             styles.modelName,
@@ -110,7 +118,7 @@ export const ModelSwitcher: React.FC<ModelSwitcherProps> = ({
             styles.modelDescription,
             isSelected && styles.selectedModelText
           ]}>
-            {modelInfo.description}
+            {modelInfo.description || modelInfo.provider}
           </Text>
           
           <View style={styles.modelBadgeContainer}>
@@ -151,12 +159,17 @@ export const ModelSwitcher: React.FC<ModelSwitcherProps> = ({
         style={styles.currentModelButton}
         onPress={openModelSelector}
       >
-        <View style={styles.currentModelInfo}>
-          <Text style={styles.currentModelLabel}>現在のモデル:</Text>
-          <Text style={styles.currentModelName}>
-            {currentModel?.name || 'Unknown'}
-          </Text>
-        </View>
+        <UserAvatar
+          name={currentModel?.name || 'AI'}
+          imageUrl={currentModel?.avatar || undefined}
+          size={32}
+          backgroundColor={theme.colors.secondary}
+        />
+        
+        <Text style={styles.currentModelName}>
+          {currentModel?.name || 'AI Model'}
+        </Text>
+        
         <Ionicons name="chevron-down" size={18} color={theme.colors.text} />
       </TouchableOpacity>
       
@@ -173,6 +186,7 @@ export const ModelSwitcher: React.FC<ModelSwitcherProps> = ({
               <TouchableOpacity
                 style={styles.closeButton}
                 onPress={() => setModalVisible(false)}
+                hitSlop={{ top: 20, right: 20, bottom: 20, left: 20 }}
               >
                 <Ionicons name="close" size={24} color={theme.colors.text} />
               </TouchableOpacity>
@@ -226,6 +240,8 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSizes.medium,
     color: theme.colors.text,
     fontWeight: theme.fontWeights.medium as any,
+    flex: 1,
+    marginHorizontal: theme.spacing.xs,
   },
   modalContainer: {
     flex: 1,
@@ -283,6 +299,7 @@ const styles = StyleSheet.create({
   },
   modelInfoContainer: {
     flex: 1,
+    marginLeft: theme.spacing.md,
     marginRight: theme.spacing.md,
   },
   modelName: {
@@ -323,5 +340,28 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSizes.tiny,
     fontWeight: theme.fontWeights.medium as any,
     color: theme.colors.text,
+  },
+  modelInfo: {
+    flex: 1,
+    marginLeft: theme.spacing.md,
+  },
+  modelProvider: {
+    fontSize: theme.fontSizes.small,
+    color: theme.colors.placeholder,
+    marginTop: 2,
+  },
+  modelBadges: {
+    marginRight: theme.spacing.md,
+  },
+  premiumBadge: {
+    backgroundColor: theme.colors.premium,
+    borderRadius: theme.borderRadius.small,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 2,
+  },
+  badgeText: {
+    fontSize: theme.fontSizes.tiny,
+    color: '#FFFFFF',
+    fontWeight: theme.fontWeights.medium as any,
   },
 });

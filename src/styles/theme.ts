@@ -5,10 +5,12 @@ export const theme = {
     premium: '#9C27B0', // Purple for premium features
     background: '#FFFFFF',
     card: '#F8F8F8',
+    cardBackground: '#F8F8F8', // For card backgrounds
     text: '#333333',
     border: '#E0E0E0',
     notification: '#FF3B30',
     placeholder: '#8E8E93',
+    premium: '#FFB900', // Gold color for premium features
     bubble: {
       user: '#06C755', // User message bubbles (green)
       bot: '#F0F0F0',  // Bot message bubbles (light gray)

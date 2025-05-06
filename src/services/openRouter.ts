@@ -5,10 +5,10 @@ import {
   MODEL_INFO, 
   MODEL_FALLBACKS,
   SUBSCRIPTION_PLANS,
-  USAGE_LIMITS 
+  USAGE_LIMITS,
+  getOpenRouterApiKey
 } from './apiConfig';
 import { 
-  getSecureItem, 
   getUserProfile, 
   checkUsageLimit, 
   incrementModelUsage 
@@ -66,7 +66,8 @@ export const sendMessageToOpenRouter = async (
       };
     }
 
-    const apiKey = await getSecureItem('openrouter_api_key');
+    // Get API key securely
+    const apiKey = await getOpenRouterApiKey();
     
     if (!apiKey) {
       throw new Error('OpenRouter API key not found. Please set it in the settings.');

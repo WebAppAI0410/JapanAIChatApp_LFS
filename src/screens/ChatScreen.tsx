@@ -18,7 +18,15 @@ import { ChatInput } from '../components/ChatInput';
 import { ImageGenerationModal } from '../components/ImageGenerationModal';
 import { ModelSwitcher } from '../components/ModelSwitcher';
 import { Ionicons } from '@expo/vector-icons';
-import { MODELS } from '../services/apiConfig';
+import { ChatMessage } from '../types';
+import { sendMessageToOpenRouter } from '../services/openRouter';
+import { MODELS, MODEL_INFO } from '../services/apiConfig';
+import { 
+  saveConversation, 
+  getConversationById, 
+  getUserProfile, 
+  getApiKeys 
+} from '../services/secureStorage';
 import { v4 as uuidv4 } from 'uuid';
 
 interface Message {
@@ -28,22 +36,6 @@ interface Message {
   timestamp: string;
   imageUrl?: string;
 }
-
-const getAIResponse = (message: string): Promise<string> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const responses = [
-        'こんにちは！何かお手伝いできることはありますか？',
-        'それは興味深い質問ですね。詳しく教えていただけますか？',
-        '申し訳ありませんが、その質問にはお答えできません。別の質問をどうぞ。',
-        'その件については、以下のように考えられます...',
-        'ご質問ありがとうございます。調べてみますね。',
-      ];
-      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-      resolve(randomResponse);
-    }, 1500);
-  });
-};
 
 const getCurrentTime = (): string => {
   const now = new Date();
@@ -56,16 +48,39 @@ interface ChatScreenProps {
 }
 
 const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => {
-  const { conversationId, modelId: initialModelId } = route.params || {};
-  const [messages, setMessages] = useState<Message[]>([]);
+  const { conversationId, modelId: initialModelId, title } = route.params || {};
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [currentModelId, setCurrentModelId] = useState(initialModelId || MODELS.CLOUD.GPT.MINI_4O);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [userName, setUserName] = useState('ユーザー');
+  const [userAvatar, setUserAvatar] = useState<string | undefined>(undefined);
+  const [conversationTitle, setConversationTitle] = useState(title || '新しいチャット');
+  const [isApiKeySet, setIsApiKeySet] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+  const currentConversationId = useRef(conversationId || uuidv4());
+
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      const profile = await getUserProfile();
+      if (profile) {
+        setUserName(profile.name);
+        setUserAvatar(profile.avatar);
+      }
+    };
+    
+    const checkApiKey = async () => {
+      const apiKeys = await getApiKeys();
+      setIsApiKeySet(!!apiKeys?.openRouter);
+    };
+    
+    loadUserProfile();
+    checkApiKey();
+  }, []);
 
   useEffect(() => {
     navigation.setOptions({
-      title: conversationId ? `会話 #${conversationId}` : '新しいチャット',
+      title: conversationTitle,
       headerStyle: {
         backgroundColor: theme.colors.primary,
       },
@@ -73,34 +88,45 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => {
       headerRight: () => (
         <TouchableOpacity 
           style={styles.headerButton}
-          onPress={() => navigation.navigate('ModelSelection')}
+          onPress={() => navigation.navigate('Settings')}
         >
           <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
         </TouchableOpacity>
       ),
     });
-  }, [navigation, conversationId]);
+  }, [navigation, conversationTitle]);
 
   useEffect(() => {
-    if (conversationId) {
-      const initialMessages: Message[] = [
-        {
+    const loadConversation = async () => {
+      if (conversationId) {
+        const conversation = await getConversationById(conversationId);
+        if (conversation) {
+          setMessages(conversation.messages);
+          setConversationTitle(conversation.title);
+          setCurrentModelId(conversation.modelId);
+        }
+      } else {
+        const welcomeMessage: ChatMessage = {
           id: '1',
-          text: 'こんにちは！何かお手伝いできることはありますか？',
-          isUser: false,
-          timestamp: '14:30',
-        },
-      ];
-      setMessages(initialMessages);
-    } else {
-      const welcomeMessage: Message = {
-        id: '1',
-        text: 'こんにちは！新しい会話を始めましょう。何かお手伝いできることはありますか？',
-        isUser: false,
-        timestamp: getCurrentTime(),
-      };
-      setMessages([welcomeMessage]);
-    }
+          role: 'assistant',
+          content: 'こんにちは！新しい会話を始めましょう。何かお手伝いできることはありますか？',
+          timestamp: Date.now(),
+          model: currentModelId,
+        };
+        setMessages([welcomeMessage]);
+        
+        saveConversation({
+          id: currentConversationId.current,
+          title: conversationTitle,
+          messages: [welcomeMessage],
+          modelId: currentModelId,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      }
+    };
+    
+    loadConversation();
   }, [conversationId]);
 
   useEffect(() => {
@@ -111,50 +137,99 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => {
     }
   }, [messages]);
 
+  useEffect(() => {
+    if (messages.length > 0) {
+      saveConversation({
+        id: currentConversationId.current,
+        title: conversationTitle,
+        messages,
+        modelId: currentModelId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+  }, [messages, currentModelId, conversationTitle]);
+
   const handleModelChange = (modelId: string) => {
     setCurrentModelId(modelId);
     
-    const systemMessage: Message = {
-      id: uuidv4(),
-      text: `AIモデルが${modelId}に変更されました。`,
-      isUser: false,
-      timestamp: getCurrentTime(),
+    const modelChangeMessage: ChatMessage = {
+      id: Date.now().toString(),
+      role: 'system',
+      content: `AIモデルが${MODEL_INFO[modelId].name}に変更されました。`,
+      timestamp: Date.now(),
+      model: modelId,
     };
     
-    setMessages((prevMessages) => [...prevMessages, systemMessage]);
+    setMessages((prevMessages) => [...prevMessages, modelChangeMessage]);
   };
 
   const handleSendMessage = async (text: string) => {
-    const userMessage: Message = {
+    if (!text.trim()) return;
+    
+    if (!isApiKeySet && currentModelId !== MODELS.LOCAL.QWEN) {
+      Alert.alert(
+        'APIキーが設定されていません',
+        'クラウドAIモデルを使用するには、設定画面でOpenRouterのAPIキーを設定してください。',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
+    const userMessage: ChatMessage = {
       id: Date.now().toString(),
-      text,
-      isUser: true,
-      timestamp: getCurrentTime(),
+      role: 'user',
+      content: text,
+      timestamp: Date.now(),
     };
     
     setMessages((prevMessages) => [...prevMessages, userMessage]);
-    
     setIsTyping(true);
     
     try {
-      const response = await getAIResponse(text);
-      
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: response,
-        isUser: false,
-        timestamp: getCurrentTime(),
-      };
-      
-      setMessages((prevMessages) => [...prevMessages, aiMessage]);
+      if (currentModelId !== MODELS.LOCAL.QWEN) {
+        const contextMessages = messages
+          .filter(msg => msg.role !== 'system') // Filter out system messages
+          .slice(-10) // Use last 10 messages for context
+          .map(msg => ({
+            id: msg.id,
+            role: msg.role,
+            content: msg.content,
+            timestamp: msg.timestamp,
+          }));
+        
+        const messagesForAI = [...contextMessages, userMessage];
+        
+        const aiResponse = await sendMessageToOpenRouter(messagesForAI, currentModelId);
+        
+        setMessages((prevMessages) => [...prevMessages, {
+          ...aiResponse,
+          model: currentModelId,
+        }]);
+      } else {
+        setTimeout(() => {
+          const mockResponse: ChatMessage = {
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: 'これはQwen3:4Bローカルモデルからのテスト応答です。実際の実装では、WebLLMを使用してローカル推論を行います。',
+            timestamp: Date.now(),
+            model: MODELS.LOCAL.QWEN,
+          };
+          
+          setMessages((prevMessages) => [...prevMessages, mockResponse]);
+          setIsTyping(false);
+        }, 1500);
+        return;
+      }
     } catch (error) {
       console.error('Error getting AI response:', error);
       
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: 'すみません、エラーが発生しました。もう一度お試しください。',
-        isUser: false,
-        timestamp: getCurrentTime(),
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'system',
+        content: 'すみません、エラーが発生しました。もう一度お試しください。',
+        timestamp: Date.now(),
+        model: currentModelId,
       };
       
       setMessages((prevMessages) => [...prevMessages, errorMessage]);
@@ -168,56 +243,75 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => {
   };
 
   const handleImageGenerated = (imageUrl: string, prompt: string) => {
-    const imageMessage: Message = {
+    const imageMessage: ChatMessage = {
       id: Date.now().toString(),
-      text: `画像生成: ${prompt}`,
-      isUser: true,
-      timestamp: getCurrentTime(),
+      role: 'user',
+      content: `画像生成: ${prompt}`,
+      timestamp: Date.now(),
       imageUrl: imageUrl,
     };
     
     setMessages((prevMessages) => [...prevMessages, imageMessage]);
     
     setTimeout(() => {
-      const aiResponse: Message = {
+      const aiResponse: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        text: '画像が生成されました。他に何かお手伝いできることはありますか？',
-        isUser: false,
-        timestamp: getCurrentTime(),
+        role: 'assistant',
+        content: '画像が生成されました。他に何かお手伝いできることはありますか？',
+        timestamp: Date.now(),
+        model: currentModelId,
       };
       
       setMessages((prevMessages) => [...prevMessages, aiResponse]);
     }, 1000);
   };
 
-  const renderMessageItem = ({ item }: { item: Message }) => {
+  const renderMessageItem = ({ item, index }: { item: ChatMessage, index: number }) => {
+    const isUser = item.role === 'user';
+    const isSystem = item.role === 'system';
+    
+    if (isSystem) {
+      return (
+        <View style={styles.systemMessageContainer}>
+          <Text style={styles.systemMessageText}>{item.content}</Text>
+        </View>
+      );
+    }
+    
     if (item.imageUrl) {
       return (
         <View style={[
           styles.messageBubble,
-          item.isUser ? styles.userBubble : styles.botBubble
+          isUser ? styles.userBubble : styles.botBubble
         ]}>
           <Text style={[
             styles.messageText,
-            item.isUser ? styles.userMessageText : styles.botMessageText
+            isUser ? styles.userMessageText : styles.botMessageText
           ]}>
-            {item.text}
+            {item.content}
           </Text>
           <Image 
             source={{ uri: item.imageUrl }} 
             style={styles.messageImage}
             resizeMode="contain"
           />
-          <Text style={styles.timestamp}>{item.timestamp}</Text>
+          <Text style={styles.timestamp}>{getCurrentTime()}</Text>
         </View>
       );
     }
     
+    const showAvatar = index === 0 || 
+      messages[index - 1].role !== item.role;
+    
     return (
       <ChatBubble
-        message={item.text}
-        isUser={item.isUser}
-        timestamp={item.timestamp}
+        message={item.content}
+        isUser={isUser}
+        timestamp={getCurrentTime()}
+        userName={userName}
+        userAvatar={userAvatar}
+        modelId={item.model}
+        showAvatar={showAvatar}
       />
     );
   };
@@ -345,6 +439,20 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSizes.tiny,
     color: 'rgba(255, 255, 255, 0.7)',
     alignSelf: 'flex-end',
+  },
+  systemMessageContainer: {
+    alignItems: 'center',
+    marginVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  systemMessageText: {
+    fontSize: theme.fontSizes.small,
+    color: theme.colors.placeholder,
+    textAlign: 'center',
+    backgroundColor: `${theme.colors.card}80`,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.small,
   },
 });
 
