@@ -3,7 +3,7 @@ import { ChatMessage } from '../types';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-const OPENROUTER_API_KEY = 'YOUR_OPENROUTER_API_KEY';
+const OPENROUTER_API_KEY = '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';
 
 export const MODELS = {
   CLOUD: {
