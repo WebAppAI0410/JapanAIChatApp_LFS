@@ -91,7 +91,7 @@ const SettingsStackNavigator = () => {
   );
 };
 
-const Navigation = () => {
+const AppNavigation = () => {
   return (
     <NavigationContainer>
       <Tab.Navigator
@@ -122,4 +122,4 @@ const Navigation = () => {
   );
 };
 
-export default Navigation;
+export default AppNavigation;
