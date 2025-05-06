@@ -75,9 +75,11 @@ export default function App() {
           ) : (
             <>
               <Navigation />
-              <View style={styles.testButtons}>
-                <Button title="Test Firebase" onPress={() => setShowTest(true)} />
-              </View>
+              {__DEV__ && (
+                <View style={styles.testButtons}>
+                  <Button title="Test Firebase" onPress={() => setShowTest(true)} />
+                </View>
+              )}
               <StatusBar style="auto" />
             </>
           )}
