@@ -8,18 +8,25 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  SafeAreaView
+  SafeAreaView,
+  Image,
+  Alert
 } from 'react-native';
 import { theme } from '../styles/theme';
 import { ChatBubble } from '../components/ChatBubble';
 import { ChatInput } from '../components/ChatInput';
+import { ImageGenerationModal } from '../components/ImageGenerationModal';
+import { ModelSwitcher } from '../components/ModelSwitcher';
 import { Ionicons } from '@expo/vector-icons';
+import { MODELS } from '../services/apiConfig';
+import { v4 as uuidv4 } from 'uuid';
 
 interface Message {
   id: string;
   text: string;
   isUser: boolean;
   timestamp: string;
+  imageUrl?: string;
 }
 
 const getAIResponse = (message: string): Promise<string> => {
@@ -49,9 +56,11 @@ interface ChatScreenProps {
 }
 
 const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => {
-  const { conversationId, modelId } = route.params || {};
+  const { conversationId, modelId: initialModelId } = route.params || {};
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [currentModelId, setCurrentModelId] = useState(initialModelId || MODELS.CLOUD.GPT.MINI_4O);
+  const [showImageModal, setShowImageModal] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
@@ -102,6 +111,19 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => {
     }
   }, [messages]);
 
+  const handleModelChange = (modelId: string) => {
+    setCurrentModelId(modelId);
+    
+    const systemMessage: Message = {
+      id: uuidv4(),
+      text: `AIモデルが${modelId}に変更されました。`,
+      isUser: false,
+      timestamp: getCurrentTime(),
+    };
+    
+    setMessages((prevMessages) => [...prevMessages, systemMessage]);
+  };
+
   const handleSendMessage = async (text: string) => {
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -141,6 +163,65 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => {
     }
   };
 
+  const handleRequestImageGeneration = () => {
+    setShowImageModal(true);
+  };
+
+  const handleImageGenerated = (imageUrl: string, prompt: string) => {
+    const imageMessage: Message = {
+      id: Date.now().toString(),
+      text: `画像生成: ${prompt}`,
+      isUser: true,
+      timestamp: getCurrentTime(),
+      imageUrl: imageUrl,
+    };
+    
+    setMessages((prevMessages) => [...prevMessages, imageMessage]);
+    
+    setTimeout(() => {
+      const aiResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        text: '画像が生成されました。他に何かお手伝いできることはありますか？',
+        isUser: false,
+        timestamp: getCurrentTime(),
+      };
+      
+      setMessages((prevMessages) => [...prevMessages, aiResponse]);
+    }, 1000);
+  };
+
+  const renderMessageItem = ({ item }: { item: Message }) => {
+    if (item.imageUrl) {
+      return (
+        <View style={[
+          styles.messageBubble,
+          item.isUser ? styles.userBubble : styles.botBubble
+        ]}>
+          <Text style={[
+            styles.messageText,
+            item.isUser ? styles.userMessageText : styles.botMessageText
+          ]}>
+            {item.text}
+          </Text>
+          <Image 
+            source={{ uri: item.imageUrl }} 
+            style={styles.messageImage}
+            resizeMode="contain"
+          />
+          <Text style={styles.timestamp}>{item.timestamp}</Text>
+        </View>
+      );
+    }
+    
+    return (
+      <ChatBubble
+        message={item.text}
+        isUser={item.isUser}
+        timestamp={item.timestamp}
+      />
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
@@ -148,17 +229,18 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
+        <View style={styles.modelSwitcherContainer}>
+          <ModelSwitcher
+            currentModelId={currentModelId}
+            onModelChange={handleModelChange}
+          />
+        </View>
+        
         <FlatList
           ref={flatListRef}
           data={messages}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <ChatBubble
-              message={item.text}
-              isUser={item.isUser}
-              timestamp={item.timestamp}
-            />
-          )}
+          renderItem={renderMessageItem}
           contentContainerStyle={styles.messageList}
         />
         
@@ -171,7 +253,16 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ route, navigation }) => {
           </View>
         )}
         
-        <ChatInput onSendMessage={handleSendMessage} />
+        <ChatInput 
+          onSendMessage={handleSendMessage} 
+          onRequestImageGeneration={handleRequestImageGeneration}
+        />
+        
+        <ImageGenerationModal
+          visible={showImageModal}
+          onClose={() => setShowImageModal(false)}
+          onImageGenerated={handleImageGenerated}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -184,6 +275,11 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+  },
+  modelSwitcherContainer: {
+    padding: theme.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
   messageList: {
     paddingVertical: theme.spacing.md,
@@ -210,6 +306,45 @@ const styles = StyleSheet.create({
   },
   headerButton: {
     marginRight: theme.spacing.md,
+  },
+  messageBubble: {
+    maxWidth: '80%',
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.medium,
+    marginHorizontal: theme.spacing.md,
+    marginVertical: theme.spacing.sm,
+    ...theme.shadows.small,
+  },
+  userBubble: {
+    backgroundColor: theme.colors.bubble.user,
+    alignSelf: 'flex-end',
+    borderBottomRightRadius: 0,
+  },
+  botBubble: {
+    backgroundColor: theme.colors.bubble.bot,
+    alignSelf: 'flex-start',
+    borderBottomLeftRadius: 0,
+  },
+  messageText: {
+    fontSize: theme.fontSizes.medium,
+    marginBottom: theme.spacing.sm,
+  },
+  userMessageText: {
+    color: theme.colors.bubble.userText,
+  },
+  botMessageText: {
+    color: theme.colors.bubble.botText,
+  },
+  messageImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: theme.borderRadius.small,
+    marginBottom: theme.spacing.sm,
+  },
+  timestamp: {
+    fontSize: theme.fontSizes.tiny,
+    color: 'rgba(255, 255, 255, 0.7)',
+    alignSelf: 'flex-end',
   },
 });
 

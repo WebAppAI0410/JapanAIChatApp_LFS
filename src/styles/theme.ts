@@ -2,6 +2,7 @@ export const theme = {
   colors: {
     primary: '#06C755', // LINE's signature green
     secondary: '#00B900', // Darker green for buttons
+    premium: '#9C27B0', // Purple for premium features
     background: '#FFFFFF',
     card: '#F8F8F8',
     text: '#333333',
@@ -28,6 +29,7 @@ export const theme = {
     large: 20,
   },
   fontSizes: {
+    tiny: 10,
     small: 12,
     regular: 14,
     medium: 16,

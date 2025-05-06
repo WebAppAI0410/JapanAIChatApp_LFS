@@ -12,9 +12,13 @@ import { Ionicons } from '@expo/vector-icons';
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
+  onRequestImageGeneration: () => void;
 }
 
-export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
+export const ChatInput: React.FC<ChatInputProps> = ({ 
+  onSendMessage,
+  onRequestImageGeneration
+}) => {
   const [message, setMessage] = useState('');
 
   const handleSend = () => {
@@ -30,17 +34,31 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <View style={styles.container}>
-        <TextInput
-          style={styles.input}
-          value={message}
-          onChangeText={setMessage}
-          placeholder="メッセージを入力..."
-          placeholderTextColor={theme.colors.placeholder}
-          multiline
-          maxLength={1000}
-          returnKeyType="send"
-          onSubmitEditing={handleSend}
-        />
+        <View style={styles.inputContainer}>
+          <TouchableOpacity 
+            style={styles.imageButton}
+            onPress={onRequestImageGeneration}
+          >
+            <Ionicons 
+              name="image-outline" 
+              size={24} 
+              color={theme.colors.placeholder} 
+            />
+          </TouchableOpacity>
+          
+          <TextInput
+            style={styles.input}
+            value={message}
+            onChangeText={setMessage}
+            placeholder="メッセージを入力..."
+            placeholderTextColor={theme.colors.placeholder}
+            multiline
+            maxLength={1000}
+            returnKeyType="send"
+            onSubmitEditing={handleSend}
+          />
+        </View>
+        
         <TouchableOpacity 
           style={[
             styles.sendButton,
@@ -70,15 +88,26 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
   },
+  inputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.borderRadius.medium,
+    marginRight: theme.spacing.sm,
+    paddingLeft: theme.spacing.sm,
+  },
+  imageButton: {
+    padding: theme.spacing.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   input: {
     flex: 1,
     minHeight: 40,
     maxHeight: 120,
-    backgroundColor: theme.colors.card,
-    borderRadius: theme.borderRadius.medium,
-    paddingHorizontal: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.sm,
-    marginRight: theme.spacing.sm,
     fontSize: theme.fontSizes.medium,
     color: theme.colors.text,
   },
